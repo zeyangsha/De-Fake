@@ -127,7 +127,6 @@ for i in range(100):
             text_emb = model.encode_text(text)
     
         emb = torch.cat((imga_embedding,text_emb),1)
-        emb = imga_embedding
         output = linear(emb.float())
         predict = output.argmax(1)
         predict = predict.cpu().numpy()
