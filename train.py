@@ -5,7 +5,6 @@ import json
 import random
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 from pathlib import Path
 from PIL import Image
@@ -19,7 +18,8 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision import datasets
 from torch.utils.data import Dataset, DataLoader, random_split
-
+from natsort import natsorted
+import torch.nn.functional as F
 import clip
 
 
