@@ -105,8 +105,12 @@ transform = transforms.Compose([
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
-realdata = real(root_dir1="real-data",prompts_file="prompt.txt", transform=transform)
-fakedata = fake(root_dir1="fake-data",prompts_file="prompt.txt", transform=transform)
+# realdata = real(root_dir1="real-data",prompts_file="prompt.txt", transform=transform)
+# fakedata = fake(root_dir1="fake-data",prompts_file="prompt.txt", transform=transform)
+
+realdata = real(root_dir1="/home/sha/stable-diffusion/real-data",prompts_file="/home/sha/stable-diffusion/prompt_for_coco.txt", transform=transform)
+fakedata = fake(root_dir1="/home/sha/stable-diffusion/output4/samples",prompts_file="/home/sha/stable-diffusion/prompt_for_coco.txt", transform=transform)
+
 
 dataset = torch.utils.data.ConcatDataset([realdata,fakedata])
 
