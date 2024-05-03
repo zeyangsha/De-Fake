@@ -4,7 +4,11 @@ It is the code for the paper: DE-FAKE: Detection and Attribution of Fake Images 
 
 ### Environment
 
-
+You first need to build the environment by:
+```
+conda env create -f environment.yaml
+conda activate defake
+```
 
 ### Infer
 
@@ -20,7 +24,10 @@ for the encoder and classifier.
 
 Then test on 
 
-python test.py --image_path XXX.
+```
+python test.py --image_path XXX
+```
+
 
 ### Train
 
@@ -28,5 +35,7 @@ If you want to train the detector yourself, please enter the correct file path i
 
 Then 
 
+```
 python train.py
+```
 
