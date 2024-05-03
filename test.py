@@ -12,18 +12,17 @@ from sklearn.metrics import confusion_matrix
 import itertools
 import torch.nn.functional as F
 
-from clipdatasets import real,fakereal,realflickr
 import torch.nn as nn
 from torch.utils.data import random_split
-from sklearn.metrics import accuracy_score
 from torch import nn
+from torchvision import transforms
 import sys
 import argparse
 import time
 from tqdm import tqdm
 from sklearn import metrics
 from sklearn.metrics import accuracy_score, recall_score, precision_score, roc_curve
-from models.blip import blip_decoder
+from blipmodels import blip_decoder
 
 class NeuralNet(nn.Module):
     def __init__(self, input_size, hidden_size_list, num_classes):
@@ -57,21 +56,33 @@ model2, preprocess = clip.load("ViT-B/32")
 
 image_size = 224
 
-image = preprocess_image(args.image_path,image_size).unsqueeze(0).to(device)
-
 blip_url = 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_capfilt_large.pth'
 
 blip = blip_decoder(pretrained=blip_url, image_size=image_size, vit='base')
 blip.eval()
 blip = blip.to(device)
 
-caption = blip.generate(image, sample=False, num_beams=3, max_length=60, min_length=5) 
+img = Image.open(args.image_path).convert('RGB')
+tform = transforms.Compose(
+    [
+        transforms.Resize(224),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+    ]
+)
+img = tform(img)
+img = img.unsqueeze(0).to("cuda")
+
+caption = blip.generate(img, sample=False, num_beams=3, max_length=60, min_length=5) 
 text = clip.tokenize(list(caption)).to(device)
 
-model = torch.load("/home/c01zesh/CISPA-projects/fake_artist-2022/clip/CLIP/finetune_clip.pt").to(device)
+model = torch.load("finetune_clip.pt").to(device)
 
 linear = NeuralNet(1024,[512,256],2).to(device)
-linear = torch.load('/home/c01zesh/CISPA-projects/fake_artist-2022/clip/CLIP/clip_linear.pt')
+linear = torch.load('clip_linear.pt')
+
+
+image = preprocess_image(args.image_path,image_size).unsqueeze(0).to(device)
 
 with torch.no_grad():
     image_features = model.encode_image(image)
