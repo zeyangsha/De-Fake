@@ -1,27 +1,26 @@
-from time import process_time_ns
-import torch
-import clip
-from PIL import Image
 import os
-import json
-import numpy as np
-from pathlib import Path
-import matplotlib.pyplot as plt
- 
-from sklearn.metrics import confusion_matrix
-import itertools
-import torch.nn.functional as F
-
-from clipdatasets import real,fakereal
-import torch.nn as nn
-from torch.utils.data import random_split
-from sklearn.metrics import accuracy_score
-from torch import nn
-from log import get_logger
 import sys
-import argparse
 import time
+import json
+import random
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
 from tqdm import tqdm
+from pathlib import Path
+from PIL import Image
+from time import process_time_ns
+from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score, confusion_matrix
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
+from torchvision import datasets
+from torch.utils.data import Dataset, DataLoader, random_split
+
+import clip
 
 
 class NeuralNet(nn.Module):
@@ -41,106 +40,144 @@ class NeuralNet(nn.Module):
         out = self.fc3(out)
         return out
 
-temp_time = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
-print(temp_time)
-print(os.path.basename(sys.argv[0]).split('.')[0])
-if not os.path.isdir(your_dir):
-    os.mkdir(your_dir)
+# 定义数据集类
+class real(Dataset):
+    def __init__(self, root_dir1, prompts_file, transform=None):
+        self.root_dir1 = root_dir1
+        self.transform = transform
+        self.image_filenames1 = natsorted(os.listdir(root_dir1))
+        self.prompts = self.load_prompts(prompts_file)
 
-logger = get_logger(your_dir_log)
+    def load_prompts(self, prompts_file):
+        with open(prompts_file, 'r') as file:
+            prompts = file.readlines()
+        prompts = [prompt.strip() for prompt in prompts]  # Remove any extra whitespace
+        return prompts
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+    def __len__(self):
+        return len(self.image_filenames1)
+
+    def __getitem__(self, idx):
+        class_name1 = self.image_filenames1[idx]
+        image_path1 = os.path.join(self.root_dir1, class_name1)
+        image1 = Image.open(image_path1).convert("RGB")
+        
+        if self.transform:
+            image1 = self.transform(image1)
+        
+        label = 0
+        prompt = self.prompts[idx] if idx < len(self.prompts) else ""
+
+        return image1, prompt, label
+
+class fake(Dataset):
+    def __init__(self, root_dir1, prompts_file, transform=None):
+        self.root_dir1 = root_dir1
+        self.transform = transform
+        self.image_filenames1 = natsorted(os.listdir(root_dir1))
+        self.prompts = self.load_prompts(prompts_file)
+
+    def load_prompts(self, prompts_file):
+        with open(prompts_file, 'r') as file:
+            prompts = file.readlines()
+        prompts = [prompt.strip() for prompt in prompts]
+        return prompts
+
+    def __len__(self):
+        return len(self.image_filenames1)
+
+    def __getitem__(self, idx):
+        class_name1 = self.image_filenames1[idx]
+        image_path1 = os.path.join(self.root_dir1, class_name1)
+        image1 = Image.open(image_path1).convert("RGB")
+        
+        if self.transform:
+            image1 = self.transform(image1)
+        
+        label = 1
+        prompt = self.prompts[idx] if idx < len(self.prompts) else ""
+
+        return image1, prompt, label
+
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+])
+
+realdata = real(root_dir1="real-data",prompts_file="prompt.txt", transform=transform)
+fakedata = fake(root_dir1="fake-data",prompts_file="prompt.txt", transform=transform)
+
+dataset = torch.utils.data.ConcatDataset([realdata,fakedata])
+
+newsize = 800
+
+size = len(dataset)
+train_dataset,test_dataset = random_split(dataset=dataset,lengths=[int(newsize),int(size-newsize)],generator=torch.Generator().manual_seed(0))
+
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+
+test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model, preprocess = clip.load("ViT-B/32", device=device)
-size = 224
-train_dataset_0 = real('your data',size)
-train_dataset_1 = fakereal('your data',size)
-train_dataset_2 = fakereal('your data',size)
-size_for_this = 10000
-train_dataset_0,_ =  random_split(dataset=train_dataset_0,lengths=[size_for_this,len(train_dataset_0)-size_for_this],generator=torch.Generator().manual_seed(0))
-train_dataset_1,_ =  random_split(dataset=train_dataset_1,lengths=[size_for_this,len(train_dataset_1)-size_for_this],generator=torch.Generator().manual_seed(0))
-train_dataset_2,_ =  random_split(dataset=train_dataset_2,lengths=[size_for_this,len(train_dataset_2)-size_for_this],generator=torch.Generator().manual_seed(0))
-train_dataset = torch.utils.data.ConcatDataset([train_dataset_0,train_dataset_1,train_dataset_2])
-size = len(train_dataset)
-newsize = size*0.8
-    
-train_dataset,test_dataset = random_split(dataset=train_dataset,lengths=[int(newsize),int(size-newsize) ],generator=torch.Generator().manual_seed(0))
-train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=128,
-        shuffle=True,
-        drop_last=True,
-    )
-
-test_loader = torch.utils.data.DataLoader(
-        test_dataset,
-        batch_size=128,
-        shuffle=True,
-        drop_last=True,
-    )
 linear = NeuralNet(1024,[512,256],2).to(device)
-
-
-criterion = torch.nn.CrossEntropyLoss()
+model.to(device)
 optimizer = torch.optim.Adam(list(linear.parameters())+list(model.parameters()), lr=3e-4)
+criterion = nn.CrossEntropyLoss()
+linear.to(device)
 
-
-for i in range(100):
-    loss_epoch = 0
-    train_acc = []
-    train_true = []
-    
-    test_acc = []
-    test_true = []
-
-    for step, (x,y,t) in enumerate(tqdm(train_loader)):
-        x = x.cuda()
-        y = y.cuda()
-        linear.train()
-        text = clip.tokenize(list(t)).to(device)
+for epoch in range(50):
+    model.train()
+    linear.train()
+    for batch_idx, (data1, prompt, target) in enumerate(train_loader):
+        data1, target = data1.to(device), target.to(device)
+        text = clip.tokenize(list(prompt)).to(device)
         with torch.no_grad():
-            imga_embedding = model.encode_image(x)
+            imga_embedding = model.encode_image(data1)
             text_emb = model.encode_text(text)
         emb = torch.cat((imga_embedding,text_emb),1)
         output = linear(emb.float())
         optimizer.zero_grad()
-        loss = criterion(output,y)
+        loss = criterion(output, target)
         loss.backward()
         optimizer.step()
-        loss_epoch += loss.item()
-        predict = output.argmax(1)
-        predict = predict.cpu().numpy()
-        predict = list(predict)
-        train_acc.extend(predict)
-        
-        y = y.cpu().numpy()
-        y = list(y)
-        train_true.extend(y)
-        
-    for step, (x,y,t) in enumerate(tqdm(test_loader)):
-        x = x.cuda()
-        y = y.cuda()
-        model.eval()
-        linear.eval()
-        text = clip.tokenize(list(t)).to(device)
-        with torch.no_grad():
-            imga_embedding = model.encode_image(x)
-            text_emb = model.encode_text(text)
-    
-        emb = torch.cat((imga_embedding,text_emb),1)
-        output = linear(emb.float())
-        predict = output.argmax(1)
-        predict = predict.cpu().numpy()
-        predict = list(predict)
-        test_acc.extend(predict)
-        
-        y = y.cpu().numpy()
-        y = list(y)
-        test_true.extend(y)
-    
-    print('train')
-    print(accuracy_score(train_true,train_acc))
-    logger.info('Epoch:[{}/{}]\t loss={:.5f}\t train acc={:.5f}'.format(str(i), str(
-        100), loss_epoch, accuracy_score(train_true,train_acc)))
-    print('test')
-    print(accuracy_score(test_true,test_acc))
-    logger.info('Test\t clean_acc={:.5f}'.format(accuracy_score(test_true,test_acc)))  
+
+        if batch_idx % 10 == 0:
+            print('Epoch {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data1), len(train_loader.dataset),
+                100. * batch_idx / len(train_loader), loss.item()))
+
+    test_loss = 0
+    correct = 0
+    model.eval()
+    linear.eval()
+    all_preds = []
+    all_targets = []
+    with torch.no_grad():
+        for images, prompts, targets in test_loader:
+            images, targets = images.to(device), targets.to(device)
+            text_tokens = clip.tokenize(prompts).to(device)
+            with torch.no_grad():
+                image_embeddings = model.encode_image(images)
+                text_embeddings = model.encode_text(text_tokens)
+
+            embeddings = torch.cat((image_embeddings, text_embeddings), 1)
+            outputs = linear(embeddings.float())
+            _, preds = torch.max(outputs, 1)
+
+            all_preds.extend(preds.cpu().numpy())
+            all_targets.extend(targets.cpu().numpy())
+
+    all_preds = np.array(all_preds)
+    all_targets = np.array(all_targets)
+
+    accuracy = accuracy_score(all_targets, all_preds)
+    recall = recall_score(all_targets, all_preds, average='weighted')
+    precision = precision_score(all_targets, all_preds, average='weighted')
+    f1 = f1_score(all_targets, all_preds, average='weighted')
+
+    print(f'Accuracy: {accuracy:.4f}, Recall: {recall:.4f}, Precision: {precision:.4f}, F1 Score: {f1:.4f}')
+
+torch.save(model.state_dict(), 'train_clip_model.pth')
+torch.save(linear.state_dict(), 'train_linear_model.pth')
