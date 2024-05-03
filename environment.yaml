@@ -1,0 +1,21 @@
+name: defake
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.8.5
+  - pip=20.3
+  - cudatoolkit=11.3
+  - pytorch=1.12.1
+  - torchvision=0.13.1
+  - numpy=1.23.1
+  - pip:
+    - tqdm
+    - Pillow
+    - scikit-learn
+    - ftfy
+    - regex
+    - git+https://github.com/openai/CLIP.git
+    - fairscale==0.4.4
+    - pycocoevalcap
+    - natsort
