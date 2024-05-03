@@ -16,5 +16,5 @@ Then test on
 
 python test.py --image_path XXX.
 
-If you want to train the detector yourself. Please enter the correct file path in train.py.
+If you want to train the detector yourself, please enter the correct file path in train.py.
 
