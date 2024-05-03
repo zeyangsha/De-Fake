@@ -19,3 +19,4 @@ dependencies:
     - fairscale==0.4.4
     - pycocoevalcap
     - natsort
+    - timm
