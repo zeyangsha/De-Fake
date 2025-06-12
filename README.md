@@ -39,3 +39,6 @@ Then
 python train.py
 ```
 
+### License
+
+DeFake is licensed under the term of thr MIT license. See LICENSE for more details. 
